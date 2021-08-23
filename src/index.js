@@ -23,8 +23,6 @@ function render(element, container) {
     .filter(isProperty)
     .forEach(prop => dom[prop] = element.props[prop]);
 
-  const parent = container.appendChild(dom);
-
   container.appendChild(parent);
 
   element.props.children.forEach(child =>
