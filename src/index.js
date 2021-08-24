@@ -17,19 +17,81 @@ function createElement(type, props, ...children ) {
 
 const isProperty = prop => prop !== 'children';
 
-function render(element, container) {
-  const dom = element.type === 'TEXT_ELEMENT' ? document.createTextNode('') : document.createElement(element.type);
-  Object.keys(element.props)
+function createDom(fiber) {
+  const dom = fiber.type === 'TEXT_ELEMENT' ? document.createTextNode('') : document.createElement(fiber.type);
+  Object.keys(fiber.props)
     .filter(isProperty)
-    .forEach(prop => dom[prop] = element.props[prop]);
+    .forEach(prop => dom[prop] = fiber.props[prop]);
+  return dom;
+};
 
-  container.appendChild(parent);
+let nextUnitOfWork = null;
 
-  element.props.children.forEach(child =>
-    render(child, dom)
-  );
+function render(element, container) {
+
+  nextUnitOfWork = {
+    dom: container,
+    props: { children: [element]}
+  };
 
 };
+
+function scheduleRenderWork(deadline) {
+  let yieldWork = false;
+
+  while (nextUnitOfWork && !yieldWork) {
+    nextUnitOfWork = executeUnitOfWork(nextUnitOfWork);
+
+    if (deadline.timeRemaining() < 1) yieldWork = true;
+  }
+
+  requestIdleCallback(scheduleRenderWork);
+};
+
+function executeUnitOfWork(fiber) {
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber);
+  }
+
+  if (fiber.parent) {
+    fiber.parent.dom.appendChild(fiber.dom);
+  }
+
+  const children = fiber.props.children;
+
+  let prevSibling = null;
+
+  children.forEach( (child, index) => {
+    const newFiber = {
+      type: child.type,
+      props: child.props,
+    }
+
+    if (index === 0) {
+      fiber.child = newFiber;
+    } else {
+      prevSibling.sibling = newFiber;
+    }
+    newFiber.parent = fiber;
+    prevSibling = newFiber;
+  });
+
+  if (fiber.child) {
+    return fiber.child;
+  }
+
+  let nextFiber = fiber;
+
+  while (nextFiber) {
+
+    if (nextFiber.sibling) {
+      return nextFiber.sibling;
+    }
+    nextFiber = nextFiber.parent;
+  }
+}
+
+requestIdleCallback(scheduleRenderWork);
 
 const CustomReact = {
   render,
